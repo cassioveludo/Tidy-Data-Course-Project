@@ -1,0 +1,150 @@
+---
+title: "Tidying Data"
+author: "Cassio Veludo"
+date: '2022-06-18'
+output: html_document
+---
+
+# Set up
+
+
+We used the following libraries to explore this data set
+```{r setup, include=T}
+library(readr)
+library(data.table)
+library(reshape2)
+```
+
+# The Data set 
+
+The data presented here is about an experiment carried out with a group of 30 volunteers who were asked to perform six activities wearing a Samsung Galaxy S II on the waist. The site where the data can be found describe the six activities as follows: WALKING, WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING. 
+
+According to the  [website](http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones), the data was "randomly partitioned into two sets, where 70% of the volunteers was selected for generating the training data and 30% the test data".
+
+We start by downloading the file provided on the quiz page. We're going to use download.file() to download it to a temporary path so we can easily remove it, after we unzip its content.
+```{r download and unzip}
+setwd("~/Desktop/datasciencecoursera/Getting_Cleaning_Data/Tidy-Data-Course-Project")
+url <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+temp <- tempfile()
+if(!file.exists("UCI HAR Dataset")){download.file(url , temp)}
+unzip(temp)
+unlink(temp)
+
+```
+
+# Merging Datasets
+
+After reading the data set homepage and opening the zip file, we realize that the data we need is spread over several data sets. There are two main data collections containing the results for the two sets (test and train). There is also data sets storing labels for the six activities and the names of the variables observed during the experiment. We need to merge all that information on a single data.frame in order to proceed with the exercise.
+
+We have already downloaded the and unzipped the file, so now we can start merging the data set. Before, let's just make sure our working directory is the same where data is stored in our computer
+```{r, list.files}
+list.files()
+
+```
+
+The list.files() function lists the files we have in our current working directory. Note that we need to access the files inside the unzipped file 'UCI HAR Dataset'. After adjusting the path, we can aplly the read.table() function to read the several data sets we have downloaded and store them in objects so we can merge all of them in a single Final Data Frame
+
+### Test Group
+
+Let's start working with the data sets from test group.
+```{r, test group}
+
+col_names <- read.table("UCI HAR Dataset/features.txt")[,2] # vector with the variable names
+
+Xtest <- read.table("UCI HAR Dataset/test/X_test.txt")     # data from test group
+testLabels <- read.table("UCI HAR Dataset/test/Y_test.txt") # activity labels from test group
+names(Xtest) = col_names                  # using the vector col_name to rename Xtest colnames
+subjTest <- read.table("UCI HAR Dataset/test/subject_test.txt")
+names(subjTest) = "subject"
+
+#subset: mean and sd cols
+mean_sd_cols <- grepl("mean|std", col_names)
+Xtest = Xtest[,mean_sd_cols]
+
+#adding activity labels to the data frame
+activity_labels <- read.table("UCI HAR Dataset/activity_labels.txt")[,2]
+testLabels[,2] <- activity_labels[testLabels[,1]] #creates a new column and fills is with activity label
+names(testLabels) = c("Activity_Index", "Activity")
+
+
+# final DF for test group
+test_data <- cbind(subjTest, testLabels,Xtest)    
+
+```
+
+### Train Group
+
+We can use the same approach to tidy the data from the train group:
+```{r, train group}
+
+col_names <- read.table("UCI HAR Dataset/features.txt")[,2] # vector with the variable names
+
+Xtrain <- read.table("UCI HAR Dataset/train/X_train.txt")       # data from test group
+ytrain <- read.table("UCI HAR Dataset/train/y_train.txt")       # activity labels from test group
+names(Xtrain) = col_names                                        # renaming Xtrain cols 
+
+subjTrain <- read.table("UCI HAR Dataset/train/subject_train.txt") # Train subjects
+names(subjTrain) = "subject"                                       # renaming subjTrain
+
+#subset: mean and sd cols
+mean_sd_cols <- grepl("mean|std", col_names)
+Xtrain = Xtrain[,mean_sd_cols]
+
+#adding activity labels to the data frame
+activity_labels <- read.table("UCI HAR Dataset/activity_labels.txt")[,2]
+ytrain[,2] <- activity_labels[ytrain[,1]] #creates a new column and fills is with activity label
+names(ytrain) = c("Activity_Index", "Activity")
+
+
+# final DF for test group
+train_data <- cbind(subjTrain,ytrain,Xtrain)    
+
+```
+
+### Final Data
+
+To bind all the data together we can proceed like that:
+```{r, final data}
+
+final_data = rbind(test_data, train_data)
+
+```
+
+
+# Meand and SD
+
+To find the mean and the sd with the average of each variable for each activity and each subject we're going to use the reshape2 package to melt all the variables, except the ones we're going to use as index on the dcast function. That way, we will be able to aggregate the variables as asked by the exercise.
+```{r, mean and sd}
+id_labels   = c("subject", "Activity_Index", "Activity")
+data_labels = setdiff(colnames(final_data), id_labels)
+melt_data = melt(final_data, id = id_labels, measure.vars = data_labels)
+
+# Apply mean function to dataset using dcast function
+tidy_data = dcast(melt_data, subject + Activity ~ variable, mean) 
+
+```
+
+# Write Table
+```{r}
+
+write.table(tidy_data, file = "./tidy_data.txt", row.names = FALSE)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
